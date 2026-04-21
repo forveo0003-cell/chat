@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비공개 채팅</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e0e10; --surface: #18181c; --surface2: #222228;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.14);
+    --text: #e8e8ec; --muted: #8888a0; --accent: #7c6ff7; --accent2: #a89df7;
+    --bubble-me: #2d2a55; --bubble-other: #1e1e26;
+    --danger: #e05c5c; --online: #4ade80;
+  }
+  body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #login-screen { width: 100%; max-width: 400px; padding: 2rem; animation: fadeIn 0.4s ease; }
+  .logo { font-family: 'Space Mono', monospace; font-size: 1rem; font-weight: 700; color: var(--accent2); letter-spacing: 0.08em; margin-bottom: 2.5rem; display: flex; align-items: center; gap: 8px; }
+  .logo::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(124,111,247,0.2); }
+  .login-title { font-size: 1.6rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .login-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 2rem; }
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+  .field input { width: 100%; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; padding: 11px 14px; color: var(--text); font-family: inherit; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+  .field input:focus { border-color: var(--accent); }
+  .btn-enter { width: 100%; background: var(--accent); border: none; border-radius: 8px; padding: 12px; color: #fff; font-family: inherit; font-size: 0.9rem; font-weight: 500; cursor: pointer; margin-top: 0.5rem; transition: opacity 0.2s, transform 0.15s; }
+  .btn-enter:hover { opacity: 0.9; } .btn-enter:active { transform: scale(0.98); }
+  .btn-enter:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .error-msg { font-size: 0.8rem; color: var(--danger); margin-top: 0.6rem; min-height: 18px; }
+  #config-banner { display: none; background: rgba(224,92,92,0.1); border: 1px solid rgba(224,92,92,0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; color: #f09090; margin-bottom: 1rem; line-height: 1.7; }
+  #chat-screen { display: none; width: 100%; max-width: 700px; height: 100vh; flex-direction: column; }
+  .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .room-info { display: flex; align-items: center; gap: 10px; }
+  .room-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--online); flex-shrink: 0; }
+  .room-name { font-family: 'Space Mono', monospace; font-size: 0.85rem; font-weight: 700; color: var(--accent2); }
+  .room-members { font-size: 0.75rem; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .my-badge { font-size: 0.72rem; color: var(--accent2); background: rgba(124,111,247,0.15); border: 1px solid rgba(124,111,247,0.2); border-radius: 20px; padding: 3px 10px; }
+  .btn-leave { background: none; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: inherit; font-size: 0.75rem; padding: 4px 10px; cursor: pointer; transition: color 0.2s, border-color 0.2s; }
+  .btn-leave:hover { color: var(--danger); border-color: var(--danger); }
+  #members-panel { font-size: 0.8rem; color: var(--muted); padding: 8px 20px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; min-height: 40px; align-items: center; }
+  .member-pill { display: flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 0.72rem; }
+  .member-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--online); flex-shrink: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px 20px 10px; display: flex; flex-direction: column; gap: 4px; scroll-behavior: smooth; }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .msg-wrap { display: flex; flex-direction: column; max-width: 72%; animation: msgIn 0.18s ease; }
+  .msg-wrap.me { align-self: flex-end; align-items: flex-end; }
+  .msg-wrap.other { align-self: flex-start; align-items: flex-start; }
+  .msg-name { font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; padding: 0 4px; }
+  .msg-bubble { padding: 9px 14px; border-radius: 12px; font-size: 0.88rem; line-height: 1.55; word-break: break-word; }
+  .msg-wrap.me .msg-bubble { background: var(--bubble-me); border-bottom-right-radius: 3px; }
+  .msg-wrap.other .msg-bubble { background: var(--bubble-other); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+  .msg-time { font-size: 0.68rem; color: var(--muted); margin-top: 3px; padding: 0 4px; }
+  .sys-msg { align-self: center; font-size: 0.72rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; margin: 6px 0; animation: msgIn 0.18s ease; }
+  .chat-input-wrap { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  #msg-input { flex: 1; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 10px 14px; color: var(--text); font-family: inherit; font-size: 0.88rem; outline: none; resize: none; max-height: 120px; transition: border-color 0.2s; line-height: 1.5; }
+  #msg-input:focus { border-color: var(--accent); }
+  #msg-input::placeholder { color: var(--muted); }
+  .btn-send { background: var(--accent); border: none; border-radius: 10px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.2s; align-self: flex-end; }
+  .btn-send:hover { opacity: 0.85; }
+  .btn-send svg { width: 18px; height: 18px; fill: #fff; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="logo">PRIVATE CHAT</div>
+  <h1 class="login-title">채팅방 입장</h1>
+  <p class="login-sub">닉네임을 입력하면 바로 입장됩니다</p>
+  <div id="config-banner"></div>
+  <div class="field">
+    <label>닉네임</label>
+    <input type="text" id="nickname" placeholder="표시될 이름" maxlength="20" autocomplete="off" />
+  </div>
+  <button class="btn-enter" id="enter-btn" onclick="tryLogin()">입장하기</button>
+  <div class="error-msg" id="err"></div>
+</div>
+
+<div id="chat-screen">
+  <div class="chat-header">
+    <div class="room-info">
+      <div class="room-dot"></div>
+      <span class="room-name">#CHAT</span>
+      <span class="room-members" id="member-count">0명 접속중</span>
+    </div>
+    <div class="header-right">
+      <span class="my-badge" id="my-badge"></span>
+      <button class="btn-leave" onclick="leaveRoom()">나가기</button>
+    </div>
+  </div>
+  <div id="members-panel"></div>
+  <div id="messages"></div>
+  <div class="chat-input-wrap">
+    <textarea id="msg-input" rows="1" placeholder="메시지 입력... (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
+    <button class="btn-send" onclick="sendMsg()">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getDatabase, ref, push, onChildAdded, set, remove, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyB6eD3jI7OD_AiC0CRz6GMDi5NcZDnm7Ag",
+    authDomain:        "chat-57e69.firebaseapp.com",
+    databaseURL:       "https://chat-57e69-default-rtdb.firebaseio.com",
+    projectId:         "chat-57e69",
+    storageBucket:     "chat-57e69.firebasestorage.app",
+    messagingSenderId: "266429331252",
+    appId:             "1:266429331252:web:fb57bd3806e6874e145761"
+  };
+
+  const ROOM = 'main';
+  let myName = '';
+  let myPresenceRef = null;
+  let db = null;
+  let seenKeys = new Set();
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+  } catch(e) {
+    const banner = document.getElementById('config-banner');
+    banner.style.display = 'block';
+    banner.textContent = '❌ Firebase 연결 실패: ' + e.message;
+    document.getElementById('enter-btn').disabled = true;
+  }
+
+  window.tryLogin = function() {
+    const nick = document.getElementById('nickname').value.trim();
+    const err = document.getElementById('err');
+    if (!nick) { err.textContent = '닉네임을 입력해주세요.'; return; }
+    if (nick.length < 2) { err.textContent = '닉네임은 2글자 이상이어야 합니다.'; return; }
+    err.textContent = '';
+    myName = nick;
+    enterRoom();
+  };
+
+  async function enterRoom() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('chat-screen').style.display = 'flex';
+    document.getElementById('my-badge').textContent = myName;
+
+    myPresenceRef = ref(db, 'rooms/' + ROOM + '/presence/' + myName);
+    await set(myPresenceRef, { name: myName, joined: Date.now() });
+
+    // 탭 닫으면 자동 제거
+    import("https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js").then(({ onDisconnect }) => {
+      onDisconnect(myPresenceRef).remove();
+    });
+
+    // 접속자 목록
+    onValue(ref(db, 'rooms/' + ROOM + '/presence'), snap => {
+      const val = snap.val() || {};
+      renderMembers(Object.keys(val));
+    });
+
+    // 메시지 수신
+    onChildAdded(ref(db, 'rooms/' + ROOM + '/messages'), snap => {
+      if (!seenKeys.has(snap.key)) {
+        seenKeys.add(snap.key);
+        appendMessage(snap.val());
+      }
+    });
+
+    pushMsg({ type: 'system', text: myName + '님이 입장했습니다' });
+
+    const input = document.getElementById('msg-input');
+    input.focus();
+    input.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+    });
+
+    window.addEventListener('beforeunload', leaveRoom);
+  }
+
+  window.sendMsg = function() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text || !myName) return;
+    input.value = '';
+    input.style.height = 'auto';
+    pushMsg({ type: 'user', sender: myName, text });
+  };
+
+  function pushMsg(data) {
+    push(ref(db, 'rooms/' + ROOM + '/messages'), { ...data, ts: Date.now() });
+  }
+
+  function appendMessage(msg) {
+    const box = document.getElementById('messages');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    if (msg.type === 'system') {
+      const el = document.createElement('div');
+      el.className = 'sys-msg';
+      el.textContent = msg.text;
+      box.appendChild(el);
+    } else {
+      const isMe = msg.sender === myName;
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-wrap ' + (isMe ? 'me' : 'other');
+      if (!isMe) {
+        const name = document.createElement('div');
+        name.className = 'msg-name';
+        name.textContent = msg.sender;
+        wrap.appendChild(name);
+      }
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.textContent = msg.text;
+      wrap.appendChild(bubble);
+      const time = document.createElement('div');
+      time.className = 'msg-time';
+      const d = new Date(msg.ts);
+      time.textContent = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+      wrap.appendChild(time);
+      box.appendChild(wrap);
+    }
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function renderMembers(members) {
+    document.getElementById('member-count').textContent = members.length + '명 접속중';
+    const panel = document.getElementById('members-panel');
+    panel.innerHTML = '';
+    members.forEach(name => {
+      const pill = document.createElement('div');
+      pill.className = 'member-pill';
+      pill.textContent = name;
+      panel.appendChild(pill);
+    });
+  }
+
+  window.leaveRoom = async function() {
+    if (!myName) return;
+    pushMsg({ type: 'system', text: myName + '님이 퇴장했습니다' });
+    if (myPresenceRef) await remove(myPresenceRef);
+    myName = '';
+  };
+
+  document.getElementById('nickname').addEventListener('keydown', e => {
+    if (e.key === 'Enter') window.tryLogin();
+  });
+</script>
+</body>
+</html>
