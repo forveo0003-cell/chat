@@ -161,11 +161,13 @@
       renderMembers(Object.keys(val));
     });
 
-    // 메시지 수신
+    // 입장 시각 이후 메시지만 수신
+    const joinedAt = Date.now();
     onChildAdded(ref(db, 'rooms/' + ROOM + '/messages'), snap => {
       if (!seenKeys.has(snap.key)) {
         seenKeys.add(snap.key);
-        appendMessage(snap.val());
+        const msg = snap.val();
+        if (msg.ts >= joinedAt) appendMessage(msg);
       }
     });
 
