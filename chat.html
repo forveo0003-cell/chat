@@ -161,14 +161,14 @@
       renderMembers(Object.keys(val));
     });
 
-    // 입장 시각 이후 메시지만 수신
+    // 입장 시각 기록 후 그 이후 메시지만 표시
     const joinedAt = Date.now();
     onChildAdded(ref(db, 'rooms/' + ROOM + '/messages'), snap => {
-      if (!seenKeys.has(snap.key)) {
-        seenKeys.add(snap.key);
-        const msg = snap.val();
-        if (msg.ts >= joinedAt) appendMessage(msg);
-      }
+      if (seenKeys.has(snap.key)) return;
+      seenKeys.add(snap.key);
+      const msg = snap.val();
+      if (!msg.ts || msg.ts < joinedAt - 500) return;
+      appendMessage(msg);
     });
 
     pushMsg({ type: 'system', text: myName + '님이 입장했습니다' });
